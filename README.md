@@ -18,7 +18,7 @@ uv sync
 Currently PDF-only; PPTX and others are not yet supported.
 
 ```bash
-uv run python main.py process \
+uv run python main.py \
   --schema "Extract invoice_number (string), invoice_date (date), total_amount (money), status (enum: Paid, Open)" \
   --output outputs/extractions.xlsx \
   docs/sample.pdf
@@ -40,7 +40,7 @@ Output:
 
 Example:
 ```bash
-uv run python main.py process \
+uv run python main.py \
   --schema "Extract invoice_number (string), invoice_date (date), total_amount (money), status (enum: Paid, Open)" \
   --output outputs/extractions.xlsx \
   tests/fixtures/sample_invoice.pdf

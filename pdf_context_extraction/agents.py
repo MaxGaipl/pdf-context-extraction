@@ -1,14 +1,13 @@
 from __future__ import annotations
-
-import base64
 import re
 from io import BytesIO
 from dataclasses import dataclass
 from pathlib import Path
+from mimetypes import guess_type
 from typing import Any, List, Optional, Sequence, Type
 
 from pydantic import BaseModel, Field, field_validator, model_validator
-from pydantic_ai import Agent
+from pydantic_ai import Agent, BinaryContent
 from pydantic_ai.models.openai import OpenAIModel
 
 from .schema import FieldSpec, FieldType, build_model
@@ -77,6 +76,7 @@ class SchemaAgent:
             self._agent = Agent[SchemaAgentResponse](
                 model=model,
                 system_prompt=self._system_prompt(),
+                output_type=SchemaAgentResponse,
             )
         return self._agent
 
@@ -86,6 +86,8 @@ class SchemaAgent:
             "Allowed types: str, bool, int, float, decimal, date (YYYY-MM-DD), datetime (ISO 8601), "
             "percent (as a number, may be 0-1 or 0-100 as specified), enum (with enum_values), "
             "money (amount + currency). "
+            "If a user does not specify a type, infer the most likely type from the field name/description "
+            "and choose it explicitly. "
             "Rules: "
             "1) Do not invent fields. "
             '2) Field names must start with a letter and contain only letters, numbers, underscore. '
@@ -98,10 +100,13 @@ class SchemaAgent:
         """
         Convert user instructions to a list of FieldSpec instances.
         """
-        result = self.agent.run(user_input)
-        # pydanticAI returns a model instance as `result.data`
+        # pydanticAI agents are async-first; run_sync blocks for CLI usage.
+        result = self.agent.run_sync(user_input)
+        # pydanticAI returns the parsed output as `result.output`
         response: SchemaAgentResponse = (
-            result.data if isinstance(result.data, SchemaAgentResponse) else SchemaAgentResponse.model_validate(result.data)
+            result.output
+            if isinstance(result.output, SchemaAgentResponse)
+            else SchemaAgentResponse.model_validate(result.output)
         )
         specs: List[FieldSpec] = []
         for fs in response.fields:
@@ -153,7 +158,7 @@ class ExtractionAgent:
         )
         agent: Agent[Any] = Agent[Any](
             model=OpenAIModel(self.model_name),
-            result_type=model,
+            output_type=model,
             system_prompt=system_prompt,
         )
 
@@ -171,26 +176,28 @@ class ExtractionAgent:
 
         user_prompt = "\n\n".join(user_prompt_parts)
 
-        attachments = self._build_image_attachments(document.images)
+        # Combine text prompt with optional image inputs (BinaryContent)
+        inputs: List[Any] = [user_prompt]
+        inputs.extend(self._build_image_inputs(document.images))
 
-        # attachments are passed to the OpenAI vision model; text prompt carries context
-        result = agent.run(user_prompt, attachments=attachments)  # type: ignore[arg-type]
-        if isinstance(result.data, BaseModel):
-            return result.data
-        return model.model_validate(result.data)
+        result = agent.run_sync(inputs)
+        if isinstance(result.output, BaseModel):
+            return result.output
+        return model.model_validate(result.output)
 
-    def _build_image_attachments(self, images: Sequence[Any]) -> List[Any]:
+    def _build_image_inputs(self, images: Sequence[Any]) -> List[Any]:
         """
-        Normalize images to a format acceptable by OpenAI vision (base64 png).
+        Normalize images to BinaryContent objects for vision models.
 
         Accepts:
         - bytes: treated as PNG bytes
         - str/Path: path to an image file
         - PIL.Image: will be converted to PNG bytes
         """
-        attachments: List[Any] = []
+        inputs: List[Any] = []
         for img in images:
             data: Optional[bytes] = None
+            media_type = "image/png"
 
             if isinstance(img, bytes):
                 data = img
@@ -198,6 +205,7 @@ class ExtractionAgent:
                 path = Path(img)
                 if path.exists():
                     data = path.read_bytes()
+                    media_type = guess_type(path.name)[0] or media_type
             else:
                 # Attempt PIL-like interface
                 if hasattr(img, "save"):
@@ -208,9 +216,6 @@ class ExtractionAgent:
             if not data:
                 continue
 
-            b64 = base64.b64encode(data).decode("ascii")
-            data_url = f"data:image/png;base64,{b64}"
-            # pydanticAI attachments are passed through to the model; OpenAI vision accepts data URLs
-            attachments.append({"type": "image_url", "image_url": {"url": data_url}})
+            inputs.append(BinaryContent(data=data, media_type=media_type))
 
-        return attachments
+        return inputs

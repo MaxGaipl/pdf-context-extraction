@@ -2,11 +2,14 @@ import logging
 from pathlib import Path
 from typing import List
 
+from dotenv import load_dotenv
 import typer
 
 from pdf_context_extraction.agents import ExtractionAgent, SchemaAgent
 from pdf_context_extraction.orchestrator import ExtractionOrchestrator
 from pdf_context_extraction.preprocess import PDFPreprocessor
+
+load_dotenv()
 
 
 app = typer.Typer(add_completion=False)
