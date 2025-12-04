@@ -28,7 +28,7 @@
 - Add regression tests alongside bug fixes to prevent repeats.
 
 ## Commit & Pull Request Guidelines
-- Use concise, imperative commit messages (`Add extractor for tables`, `Fix page iteration bug`).
-- Group related changes into single commits; avoid mixing refactors with feature work without clear rationale.
+- Use Conventional Commits: `<type>(<scope>): <subject>` in imperative, 72-char subject limit; common types: `feat`, `fix`, `chore`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `style`.
+- Keep one logical change per commit; avoid mixing refactors with feature work without clear rationale.
 - PRs should explain the problem, the approach, and any trade-offs; link issues when available.
 - Include testing notes in PRs (`pytest -q`, manual checks) and call out known gaps or follow-ups.
