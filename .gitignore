@@ -29,6 +29,22 @@ Thumbs.db
 outputs/
 *.log
 
+# Binary / data artifacts
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+*.csv
+*.tsv
+*.zip
+*.tar
+*.gz
+*.7z
+*.rar
+
 # Coverage / pytest
 .coverage
 .coverage.*
